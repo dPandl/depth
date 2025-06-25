@@ -1,0 +1,131 @@
+/* Font import muss ganz oben stehen */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* Tailwind CSS Direktiven */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Eigene Neumorphic Styles */
+.font-inter {
+    font-family: 'Inter', sans-serif;
+}
+
+/* General Neumorphic Shadows - LIGHT MODE */
+.shadow-outset-lg {
+  box-shadow: 6px 6px 12px rgba(174, 174, 192, 0.4), -6px -6px 12px rgba(255, 255, 255, 0.7);
+}
+.shadow-inset-md {
+  box-shadow: inset 4px 4px 8px rgba(174, 174, 192, 0.4), inset -4px -4px 8px rgba(255, 255, 255, 0.7);
+}
+.shadow-inset-lg {
+  box-shadow: inset 6px 6px 12px rgba(174, 174, 192, 0.5), inset -6px -6px 12px rgba(255, 255, 255, 0.6);
+}
+/* Increased intensity for shadow-inset-xl */
+.shadow-inset-xl {
+  box-shadow: inset 8px 8px 16px rgba(174, 174, 192, 0.6), inset -8px -8px 16px rgba(255, 255, 255, 0.5);
+}
+
+/* Dark Mode Shadows */
+html.dark .shadow-outset-lg {
+  box-shadow: 6px 6px 12px rgba(0, 0, 0, 0.6), -6px -6px 12px rgba(255, 255, 255, 0.1);
+}
+html.dark .shadow-inset-md {
+  box-shadow: inset 4px 4px 8px rgba(0, 0, 0, 0.6), inset -4px -4px 8px rgba(255, 255, 255, 0.1);
+}
+html.dark .shadow-inset-lg {
+  box-shadow: inset 6px 6px 12px rgba(0, 0, 0, 0.7), inset -6px -6px 12px rgba(255, 255, 255, 0.15);
+}
+html.dark .shadow-inset-xl {
+  box-shadow: inset 8px 8px 16px rgba(0, 0, 0, 0.8), inset -8px -8px 16px rgba(255, 255, 255, 0.2);
+}
+
+/* Neumorphic Button Active/Press State */
+.neumorphic-btn-active-press:active {
+  box-shadow: inset 4px 4px 8px rgba(174, 174, 192, 0.4), inset -4px -4px 8px rgba(255, 255, 255, 0.7);
+}
+html.dark .neumorphic-btn-active-press:active {
+  box-shadow: inset 4px 4px 8px rgba(0, 0, 0, 0.6), inset -4px -4px 8px rgba(255, 255, 255, 0.1);
+}
+
+/* Neumorphic Slider Shadow - Unique effect for the toggle pill */
+.shadow-neumorphic-slider {
+  box-shadow: 4px 4px 8px rgba(174, 174, 192, 0.4), -4px -4px 8px rgba(255, 255, 255, 0.7);
+}
+html.dark .shadow-neumorphic-slider {
+  box-shadow: 4px 4px 8px rgba(0, 0, 0, 0.6), -4px -4px 8px rgba(255, 255, 255, 0.1);
+}
+
+/* Like Button Specific Styles */
+.like-button {
+  transition: all 0.2s ease-in-out;
+}
+
+/* Unliked state: outset shadow, grey text */
+.like-button.unliked {
+  color: #a0a0a0; /* Neutral grey */
+  box-shadow: 4px 4px 8px rgba(174, 174, 192, 0.4), -4px -4px 8px rgba(255, 255, 255, 0.7);
+}
+html.dark .like-button.unliked {
+  color: #888888; /* Darker grey */
+  box-shadow: 4px 4px 8px rgba(0, 0, 0, 0.6), -4px -4px 8px rgba(255, 255, 255, 0.1);
+}
+
+/* Unliked Hover: slightly more prominent outset shadow, slightly darker text */
+.like-button.unliked:hover {
+  box-shadow: 5px 5px 10px rgba(174, 174, 192, 0.5), -5px -5px 10px rgba(255, 255, 255, 0.6);
+  color: #777777;
+}
+html.dark .like-button.unliked:hover {
+  box-shadow: 5px 5px 10px rgba(0, 0, 0, 0.7), -5px -5px 10px rgba(255, 255, 255, 0.05);
+  color: #aaaaaa;
+}
+
+/* Unliked Active (Press): inset shadow, red text */
+.like-button.unliked:active {
+  box-shadow: inset 4px 4px 8px rgba(174, 174, 192, 0.4), inset -4px -4px 8px rgba(255, 255, 255, 0.7);
+  color: #ef4444; /* Red on press */
+}
+html.dark .like-button.unliked:active {
+  box-shadow: inset 4px 4px 8px rgba(0, 0, 0, 0.6), inset -4px -4px 8px rgba(255, 255, 255, 0.1);
+  color: #f87171; /* Red on press in dark mode */
+}
+
+/* Liked state: inset shadow, red text */
+.like-button.liked {
+  box-shadow: inset 4px 4px 8px rgba(174, 174, 192, 0.4), inset -4px -4px 8px rgba(255, 255, 255, 0.7);
+  color: #ef4444; /* Tailwind red-500 */
+}
+html.dark .like-button.liked {
+  box-shadow: inset 4px 4px 8px rgba(0, 0, 0, 0.6), inset -4px -4px 8px rgba(255, 255, 255, 0.1);
+  color: #f87171; /* Tailwind red-400 */
+}
+
+/* Liked Hover: NO SHADOW CHANGE ON HOVER */
+.like-button.liked:hover {
+  /* box-shadow: inherit; */ /* Keep the inset shadow consistent */
+  /* color: inherit; */ /* Keep the red color consistent */
+}
+
+/* Root element styling */
+/* Ensures #root fills the entire viewport */
+#root {
+  width: 100%;
+  min-height: 100vh;
+  display: flex; /* Make it a flex container to manage its children */
+  flex-direction: column; /* Stack children vertically */
+  /* No margin, padding, or max-width here */
+}
+
+/* Ensure html and body take full height */
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden; /* Prevent horizontal scrolling */
+}
+
+/* Dynamic padding for body when fixed elements are present */
+body {
+    padding-bottom: var(--dynamic-padding-bottom, 0px);
+}
