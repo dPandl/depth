@@ -374,6 +374,24 @@ const getVideoEmbedUrl = (url) => {
     return `https://www.instagram.com/${instaMatch[1]}/${instaMatch[2]}/embed`;
   }
 
+    // Pornhub
+  const phMatch = url.match(/(?:https?:\/\/)?(?:www\.)?pornhub\.com\/view_video\.php\?viewkey=([\w]+)/);
+  if (phMatch && phMatch[1]) {
+    return `https://www.pornhub.com/embed/${phMatch[1]}`;
+  }
+
+  // PMVHaven
+  const pmvMatch = url.match(/(?:https?:\/\/)?(?:www\.)?pmvhaven\.com\/video\/(?:watch\/)?([\w_]+)/);
+  if (pmvMatch && pmvMatch[1]) {
+    return `https://pmvhaven.com/video/embed/${pmvMatch[1]}`;
+  }
+
+  // RedGIFs
+  const redgifsMatch = url.match(/(?:https?:\/\/)?(?:www\.)?redgifs\.com\/(?:watch|ifr)\/([\w-]+)/);
+  if (redgifsMatch && redgifsMatch[1]) {
+    return `https://www.redgifs.com/ifr/${redgifsMatch[1]}`;
+  }
+
   // Basic check for direct video files (less common for user input, but good to have)
   if (url.match(/\.(mp4|webm|ogg)$/i)) {
     return url;
@@ -389,6 +407,9 @@ const getVideoAspectRatio = (url) => {
   if (url.includes("redditmedia.com")) return "16/9";
   if (url.includes("tiktok.com")) return "9/16";       // Hochformat
   if (url.includes("instagram.com")) return "9/16";    // Hochformat
+  if (url.includes("pmvhaven.com")) return "16/9";
+  if (url.includes("pornhub.com")) return "16/9";
+  if (url.includes("redgifs.com")) return "9/16";
   if (url.match(/\.(mp4|webm|ogg)$/i)) return "auto";  // Für Video-Tag, kannst anders behandeln
 
   return "16/9"; // Default
