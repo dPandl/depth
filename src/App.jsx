@@ -14,6 +14,7 @@ const translations = {
     edit: 'Bearbeiten',
     delete: 'Löschen',
     addImage: 'Bild hinzufügen',
+    addImageCamera: 'Bild hinzufügen (Kamera)',
     addVideo: 'Video hinzufügen',
     addHashtag: 'Hashtag hinzufügen',
     imageTooLarge: 'Bilddatei zu groß (max. 5MB).',
@@ -123,6 +124,7 @@ const translations = {
     edit: 'Edit',
     delete: 'Delete',
     addImage: 'Add Image',
+    addImageCamera: 'Add Image (Camera)',
     addVideo: 'Add Video',
     addHashtag: 'Add Hashtag',
     imageTooLarge: 'Image file too large (max. 5MB).',
@@ -314,7 +316,7 @@ const generateUniqueId = () => {
 // Utility function to extract hashtags from text
 const extractHashtags = (text) => {
   if (!text) return [];
-  const matches = text.match(/#(\w+)/g);
+  const matches = text.match(/#([\p{L}\p{N}_]+)/gu);
   return matches ? [...new Set(matches.map(tag => tag.toLowerCase()))] : [];
 };
 
@@ -322,7 +324,7 @@ const extractHashtags = (text) => {
 // Accepts 't' as an argument, so it doesn't call useTranslation internally
 const renderTextWithHashtags = (text, onHashtagClick, t) => {
   if (!text) return null;
-  const parts = text.split(/(#\w+)/g);
+  const parts = text.split(/(#[\p{L}\p{N}_]+)/gu);
   return parts.map((part, index) => {
     if (part.startsWith('#')) {
       const hashtag = part.toLowerCase();
@@ -374,24 +376,6 @@ const getVideoEmbedUrl = (url) => {
     return `https://www.instagram.com/${instaMatch[1]}/${instaMatch[2]}/embed`;
   }
 
-    // Pornhub
-  const phMatch = url.match(/(?:https?:\/\/)?(?:www\.)?pornhub\.com\/view_video\.php\?viewkey=([\w]+)/);
-  if (phMatch && phMatch[1]) {
-    return `https://www.pornhub.com/embed/${phMatch[1]}`;
-  }
-
-  // PMVHaven
-  const pmvMatch = url.match(/(?:https?:\/\/)?(?:www\.)?pmvhaven\.com\/video\/(?:watch\/)?([\w_]+)/);
-  if (pmvMatch && pmvMatch[1]) {
-    return `https://pmvhaven.com/video/embed/${pmvMatch[1]}`;
-  }
-
-  // RedGIFs
-  const redgifsMatch = url.match(/(?:https?:\/\/)?(?:www\.)?redgifs\.com\/(?:watch|ifr)\/([\w-]+)/);
-  if (redgifsMatch && redgifsMatch[1]) {
-    return `https://www.redgifs.com/ifr/${redgifsMatch[1]}`;
-  }
-
   // Basic check for direct video files (less common for user input, but good to have)
   if (url.match(/\.(mp4|webm|ogg)$/i)) {
     return url;
@@ -407,9 +391,6 @@ const getVideoAspectRatio = (url) => {
   if (url.includes("redditmedia.com")) return "16/9";
   if (url.includes("tiktok.com")) return "9/16";       // Hochformat
   if (url.includes("instagram.com")) return "9/16";    // Hochformat
-  if (url.includes("pmvhaven.com")) return "16/9";
-  if (url.includes("pornhub.com")) return "16/9";
-  if (url.includes("redgifs.com")) return "9/16";
   if (url.match(/\.(mp4|webm|ogg)$/i)) return "auto";  // Für Video-Tag, kannst anders behandeln
 
   return "16/9"; // Default
@@ -529,18 +510,20 @@ const ConfirmationDialog = ({ message, onConfirm, onCancel, t }) => { // Added t
 };
 
 
-// PostForm Component (Now a modal-like screen)
-const PostForm = ({ onAddPost, onClose, userName, allAvailableHashtags, profileImageUrl, t }) => { // Added t prop
+// PostForm Component (Jetzt ein modales Fenster)
+const PostForm = ({ onAddPost, onClose, userName, allAvailableHashtags, profileImageUrl, t }) => {
   const [text, setText] = useState('');
   const [imageFile, setImageFile] = useState(null);
   const [videoUrl, setVideoUrl] = useState('');
-  const [showVideoInput, setShowVideoInput] = useState(false); // New state to control video input visibility
+  const [showVideoInput, setShowVideoInput] = useState(false); // Neuer Status zur Steuerung der Video-Eingabesichtbarkeit
   const [message, setMessage] = useState('');
-  const [showHashtagSelector, setShowHashtagSelector] = useState(false); // New state for hashtag selector visibility
+  const [showHashtagSelector, setShowHashtagSelector] = useState(false); // Neuer Status für die Hashtag-Selektor-Sichtbarkeit
   const messageTimeoutRef = useRef(null);
-  const imageInputRef = useRef(null); // Ref for image file input
-  const cameraInputRef = useRef(null); // Ref for camera input
-  const textareaRef = useRef(null); // Ref for the textarea element
+  const imageInputRef = useRef(null); // Ref für die Bilddatei-Eingabe
+  const cameraInputRef = useRef(null); // Ref für die Kamera-Eingabe
+  const textareaRef = useRef(null); // Ref für das Textarea-Element
+  const [showMoreOptions, setShowMoreOptions] = useState(false); // Neuer Status für das Mehr-Optionen-Dropdown
+  const moreOptionsRef = useRef(null); // Neuer Ref für das Mehr-Optionen-Dropdown
 
   const showMessage = (msg, isError = false) => {
     setMessage(msg);
@@ -549,54 +532,74 @@ const PostForm = ({ onAddPost, onClose, userName, allAvailableHashtags, profileI
     }
     messageTimeoutRef.current = setTimeout(() => {
       setMessage('');
-    }, 3000); // Message disappears after 3 seconds
+    }, 3000); // Nachricht verschwindet nach 3 Sekunden
   };
 
-  // Effect to auto-resize the textarea and control initial height
+  // Effekt zur automatischen Größenanpassung des Textbereichs
   useEffect(() => {
     if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto'; // Reset height for true scrollHeight calculation
+      textareaRef.current.style.height = 'auto'; // Höhe zurücksetzen für korrekte scrollHeight-Berechnung
 
-      // Define the target total height for a single line (40px)
-      const targetTotalHeight = 40; // Corresponds to h-10 (2.5rem)
+      // Zielgesamthöhe für eine einzelne Zeile (40px)
+      const targetTotalHeight = 40; // Entspricht h-10 (2.5rem) in Tailwind
 
-      // Get initial scrollHeight when empty or with a single character
+      // Ursprüngliche scrollHeight, wenn leer oder mit einem einzelnen Zeichen
       const initialScrollHeight = textareaRef.current.scrollHeight;
 
-      // Adding a small threshold to account for potential fractional pixel rendering
+      // Kleiner Schwellenwert, um potenzielle gebrochene Pixel-Renderings zu berücksichtigen
       const threshold = 2;
 
       if (text.trim() === '') {
-        // If empty, force to exact 40px
+        // Wenn leer, auf exakt 40px erzwingen
         textareaRef.current.style.height = `${targetTotalHeight}px`;
       } else if (initialScrollHeight > targetTotalHeight + threshold) {
-        // If content genuinely needs more space than 40px (e.g., wraps to next line)
+        // Wenn Inhalt tatsächlich mehr Platz als 40px benötigt (z.B. Umbruch in die nächste Zeile)
         textareaRef.current.style.height = `${initialScrollHeight}px`;
       } else {
-        // If content fits within 40px, or is only slightly over due to rendering quirks, force to 40px
+        // Wenn Inhalt innerhalb von 40px passt oder nur leicht überschritten wird, auf 40px erzwingen
         textareaRef.current.style.height = `${targetTotalHeight}px`;
       }
-      textareaRef.current.style.overflow = 'hidden'; // Always hide scrollbar
+      textareaRef.current.style.overflow = 'hidden'; // Scrollleiste immer ausblenden
     }
-  }, [text]); // Re-run whenever text changes
+  }, [text]); // Bei jeder Textänderung erneut ausführen
+
+  // Effekt zum Schließen des "More Options"-Dropdowns beim Klicken außerhalb
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      // Wenn das Dropdown sichtbar ist UND der Klick außerhalb des Dropdowns UND nicht auf den "..." Button erfolgte
+      // Die Prüfung auf event.target.closest('.neumorphic-btn-active-press') stellt sicher, dass der Klick auf den "..." Button selbst
+      // das Dropdown nicht sofort wieder schließt.
+      if (moreOptionsRef.current && !moreOptionsRef.current.contains(event.target) && !event.target.closest('.neumorphic-btn-active-press')) {
+        setShowMoreOptions(false);
+      }
+    };
+
+    // Event Listener beim Mounten hinzufügen
+    document.addEventListener('mousedown', handleClickOutside);
+
+    // Event Listener beim Unmounten entfernen
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [moreOptionsRef]); // Abhängigkeit von moreOptionsRef
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
-    if (file && file.size > 5 * 1024 * 1024) { // 5MB limit
+    if (file && file.size > 5 * 1024 * 1024) { // 5MB Limit
       showMessage(t('imageTooLarge'), true);
       setImageFile(null);
-      e.target.value = ''; // Clear file input
+      e.target.value = ''; // Dateieingabe leeren
       return;
     }
     setImageFile(file);
-    // Automatically clear other media inputs if an image is selected
+    // Andere Medieneingaben automatisch leeren, wenn ein Bild ausgewählt wird
     setVideoUrl('');
-    setShowVideoInput(false); // Hide video input if image is selected
+    setShowVideoInput(false); // Video-Eingabe ausblenden, wenn Bild ausgewählt wird
   };
 
   const handleVideoUrlChange = (e) => {
     setVideoUrl(e.target.value);
-    // Automatically clear image selection if video URL is entered
+    // Bildauswahl automatisch leeren, wenn Video-URL eingegeben wird
     setImageFile(null);
     if (imageInputRef.current) {
       imageInputRef.current.value = '';
@@ -607,8 +610,8 @@ const PostForm = ({ onAddPost, onClose, userName, allAvailableHashtags, profileI
   };
 
   const handleSelectHashtag = (hashtag) => {
-    setText(prevText => `${prevText} ${hashtag} `); // Add hashtag with spaces
-    setShowHashtagSelector(false); // Close selector
+    setText(prevText => `${prevText} ${hashtag} `); // Hashtag mit Leerzeichen hinzufügen
+    setShowHashtagSelector(false); // Selektor schließen
   };
 
   const handleSubmit = async () => {
@@ -632,25 +635,25 @@ const PostForm = ({ onAddPost, onClose, userName, allAvailableHashtags, profileI
       }
     }
 
-    const hashtags = extractHashtags(text); // Extract hashtags from the text
+    const hashtags = extractHashtags(text); // Hashtags aus dem Text extrahieren
 
     const newPost = {
       id: generateUniqueId(),
       text,
-      timestamp: new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' - ' + new Date().toLocaleDateString('de-DE'), // Format: HH:MM - DD.MM.YYYY
+      timestamp: new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' - ' + new Date().toLocaleDateString('de-DE'), // Format: HH:MM - TT.MM.JJJJ
       likes: 0,
       imageUrl,
       videoUrl: videoUrl.trim(),
       replies: [],
-      likedBy: [], // Array to store user IDs who liked this post
-      hashtags: hashtags, // Store extracted hashtags
+      likedBy: [], // Array zum Speichern von Benutzer-IDs, die diesen Beitrag geliked haben
+      hashtags: hashtags, // Extrahierte Hashtags speichern
     };
 
     onAddPost(newPost);
     setText('');
     setImageFile(null);
     setVideoUrl('');
-    setShowVideoInput(false); // Hide video input after posting
+    setShowVideoInput(false); // Video-Eingabe nach dem Posten ausblenden
     if (imageInputRef.current) {
       imageInputRef.current.value = '';
     }
@@ -658,16 +661,16 @@ const PostForm = ({ onAddPost, onClose, userName, allAvailableHashtags, profileI
       cameraInputRef.current.value = '';
     }
     showMessage(t('postCreatedSuccess'));
-    onClose(); // Close the modal after successful post
+    onClose(); // Modal nach erfolgreichem Posten schließen
   };
 
   const toggleVideoInput = () => {
     setShowVideoInput(prev => !prev);
-    // If toggling off, clear the video URL
+    // Wenn ausgeschaltet wird, Video-URL leeren
     if (showVideoInput) {
       setVideoUrl('');
     }
-    // Always clear image selection when toggling video input
+    // Bildauswahl immer leeren, wenn Video-Eingabe umgeschaltet wird
     setImageFile(null);
     if (imageInputRef.current) {
       imageInputRef.current.value = '';
@@ -686,12 +689,12 @@ const PostForm = ({ onAddPost, onClose, userName, allAvailableHashtags, profileI
           hashtags={allAvailableHashtags}
           onSelect={handleSelectHashtag}
           onClose={() => setShowHashtagSelector(false)}
-          t={t} // Pass t
+          t={t} // t weitergeben
         />
       )}
 
       <div className="fixed inset-0 bg-gray-100 z-50 flex flex-col p-4 sm:p-8 overflow-hidden dark:bg-neutral-900 transition-colors duration-500">
-        {/* Top Bar (only close button and user info) */}
+        {/* Obere Leiste (nur Schließen-Button und Benutzerinfo) */}
         <div className="flex justify-between items-center w-full max-w-2xl mx-auto mb-4">
           <div className="flex items-center space-x-4">
             <button
@@ -703,7 +706,7 @@ const PostForm = ({ onAddPost, onClose, userName, allAvailableHashtags, profileI
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
-            {/* PROFILE IMAGE / INITIALS IN POST FORM */}
+            {/* PROFILBILD / INITIALEN IM POST-FORMULAR */}
             {profileImageUrl ? (
               <div className="relative w-10 h-10 rounded-full overflow-hidden">
                 <img
@@ -719,10 +722,10 @@ const PostForm = ({ onAddPost, onClose, userName, allAvailableHashtags, profileI
               </div>
             )}
           </div>
-          {/* Post button moved to bottom */}
+          {/* Post-Button nach unten verschoben */}
         </div>
 
-        {/* Main Content Area (Textarea) */}
+        {/* Hauptinhaltsbereich (Textarea) */}
         <div className="flex-1 w-full max-w-2xl mx-auto flex flex-col">
           <textarea
             ref={textareaRef}
@@ -746,30 +749,34 @@ const PostForm = ({ onAddPost, onClose, userName, allAvailableHashtags, profileI
           )}
           <input
             type="text"
-            className={`w-full p-3 mt-2 rounded-xl bg-gray-100 shadow-inset-md text-gray-700 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-300 ${showVideoInput ? 'block' : 'hidden'} dark:bg-neutral-900 dark:text-neutral-200 dark:placeholder-neutral-400 dark:focus:ring-blue-600`} // Controlled by showVideoInput
+            className={`w-full p-3 mt-2 rounded-xl bg-gray-100 shadow-inset-md text-gray-700 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-300 ${showVideoInput ? 'block' : 'hidden'} dark:bg-neutral-900 dark:text-neutral-200 dark:placeholder-neutral-400 dark:focus:ring-blue-600`} // Gesteuert durch showVideoInput
             placeholder={t('videoLink')}
             value={videoUrl}
             onChange={handleVideoUrlChange}
           />
         </div>
 
-
-        {/* Bottom Action Bar */}
-        <div className="w-full max-w-2xl mx-auto mt-4 p-4 rounded-2xl shadow-outset-lg bg-gray-100 flex items-center dark:bg-neutral-900">
+        {/* Untere Aktionsleiste */}
+        <div className="w-full max-w-2xl mx-auto mt-4 p-4 rounded-2xl shadow-outset-lg bg-gray-100 flex items-center dark:bg-neutral-900 relative">
           {message && (
             <div className="text-center text-sm font-semibold text-green-700 bg-green-100 p-2 rounded-xl shadow-inset-md flex-grow mx-4 dark:text-green-300 dark:bg-neutral-900">
               {message}
             </div>
           )}
-          <div className="flex space-x-4 ml-auto"> {/* Added ml-auto to push to right */}
-            {/* Image Upload Button */}
-            <label htmlFor="imageUpload" className={`p-3 rounded-full bg-gray-100 shadow-outset-lg text-blue-500 neumorphic-btn-active-press transition-all duration-200 cursor-pointer dark:bg-neutral-900 dark:text-blue-300 ${showVideoInput || videoUrl ? 'opacity-50 cursor-not-allowed' : ''}`}>
+
+          {/* Gruppe für linksbündige Buttons (Medien & Hashtags) */}
+          {/* ACHTUNG: Das äußere "flex space-x-4" wurde entfernt, da das P-4 des Elternelements und die internen space-x-4 der Gruppen die Ausrichtung steuern. */}
+
+          {/* Standard-Buttons für mittelgroße Bildschirme und größer */}
+          <div className="hidden sm:flex space-x-4">
+            {/* Bild-Upload-Button */}
+            <label htmlFor="imageUpload-md" className={`p-3 rounded-full bg-gray-100 shadow-outset-lg text-blue-500 neumorphic-btn-active-press transition-all duration-200 cursor-pointer dark:bg-neutral-900 dark:text-blue-300 ${showVideoInput || videoUrl ? 'opacity-50 cursor-not-allowed' : ''}`} title={t('addImage')}>
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
               <input
                 type="file"
-                id="imageUpload"
+                id="imageUpload-md"
                 ref={imageInputRef}
                 accept="image/*"
                 className="hidden"
@@ -778,25 +785,25 @@ const PostForm = ({ onAddPost, onClose, userName, allAvailableHashtags, profileI
               />
             </label>
 
-            {/* Camera Button */}
-            <label htmlFor="cameraCapture" className={`p-3 rounded-full bg-gray-100 shadow-outset-lg text-blue-500 neumorphic-btn-active-press transition-all duration-200 cursor-pointer dark:bg-neutral-900 dark:text-blue-300 ${showVideoInput || videoUrl ? 'opacity-50 cursor-not-allowed' : ''}`}>
+            {/* Kamera-Button */}
+            <label htmlFor="cameraCapture-md" className={`p-3 rounded-full bg-gray-100 shadow-outset-lg text-blue-500 neumorphic-btn-active-press transition-all duration-200 cursor-pointer dark:bg-neutral-900 dark:text-blue-300 ${showVideoInput || videoUrl ? 'opacity-50 cursor-not-allowed' : ''}`} title={t('addImageCamera')}>
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
               <input
                 type="file"
-                id="cameraCapture"
+                id="cameraCapture-md"
                 ref={cameraInputRef}
                 accept="image/*"
-                capture="environment" // or "user" for front camera
+                capture="environment"
                 className="hidden"
                 onChange={handleImageChange}
                 disabled={showVideoInput || !!videoUrl}
               />
             </label>
 
-            {/* Video Link Button */}
+            {/* Video-Link-Button */}
             <button
               onClick={toggleVideoInput}
               className={`p-3 rounded-full bg-gray-100 shadow-outset-lg text-blue-500 neumorphic-btn-active-press transition-all duration-200 dark:bg-neutral-900 dark:text-blue-300 ${imageFile ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -808,7 +815,7 @@ const PostForm = ({ onAddPost, onClose, userName, allAvailableHashtags, profileI
               </svg>
             </button>
 
-            {/* Hashtag Selector Button - ONLY SHOW IF HASHTAGS EXIST */}
+            {/* Hashtag-Auswahl-Button - NUR ANZEIGEN, WENN HASHTAGS EXISTIEREN */}
             {allAvailableHashtags.length > 0 && (
               <button
                 onClick={() => setShowHashtagSelector(true)}
@@ -820,7 +827,88 @@ const PostForm = ({ onAddPost, onClose, userName, allAvailableHashtags, profileI
                 </svg>
               </button>
             )}
+          </div>
 
+          {/* "Mehr Optionen"-Button für kleine Bildschirme */}
+          <div className="sm:hidden">
+            <button
+              onClick={() => setShowMoreOptions(prev => !prev)}
+              className="p-3 rounded-full bg-gray-100 shadow-outset-lg text-gray-600 neumorphic-btn-active-press transition-all duration-200 dark:bg-neutral-900 dark:text-neutral-200"
+              title="Weitere Optionen"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Schwebendes Dropdown für "Mehr Optionen" */}
+          {showMoreOptions && (
+            <div
+              ref={moreOptionsRef}
+              className="absolute bottom-full left-0 mb-3 p-4 rounded-xl shadow-outset-lg bg-gray-100 flex flex-col space-y-3 items-center dark:bg-neutral-800 z-50" // right-0 zu left-0 geändert
+            >
+              {/* Bild-Upload-Button */}
+              <label htmlFor="imageUpload-sm" className={`w-12 h-12 rounded-full bg-gray-100 shadow-outset-lg text-blue-500 neumorphic-btn-active-press transition-all duration-200 cursor-pointer dark:bg-neutral-900 dark:text-blue-300 flex items-center justify-center ${showVideoInput || videoUrl ? 'opacity-50 cursor-not-allowed' : ''}`} title={t('addImage')}>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <input
+                  type="file"
+                  id="imageUpload-sm"
+                  ref={imageInputRef}
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleImageChange}
+                  disabled={showVideoInput || !!videoUrl}
+                />
+              </label>
+
+              {/* Kamera-Button */}
+              <label htmlFor="cameraCapture-sm" className={`w-12 h-12 rounded-full bg-gray-100 shadow-outset-lg text-blue-500 neumorphic-btn-active-press transition-all duration-200 cursor-pointer dark:bg-neutral-900 dark:text-blue-300 flex items-center justify-center ${showVideoInput || videoUrl ? 'opacity-50 cursor-not-allowed' : ''}`} title={t('addImageCamera')}>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <input
+                  type="file"
+                  id="cameraCapture-sm"
+                  ref={cameraInputRef}
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleImageChange}
+                  disabled={showVideoInput || !!videoUrl}
+                />
+              </label>
+
+              {/* Video-Link-Button */}
+              <button
+                onClick={toggleVideoInput}
+                className={`w-12 h-12 rounded-full bg-gray-100 shadow-outset-lg text-blue-500 neumorphic-btn-active-press transition-all duration-200 dark:bg-neutral-900 dark:text-blue-300 flex items-center justify-center ${imageFile ? 'opacity-50 cursor-not-allowed' : ''}`}
+                title={t('addVideo')}
+                disabled={!!imageFile}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M4 12a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2z" />
+                </svg>
+              </button>
+
+              {/* Hashtag-Auswahl-Button - NUR ANZEIGEN, WENN HASHTAGS EXISTIEREN */}
+              {allAvailableHashtags.length > 0 && (
+                <button
+                  onClick={() => { setShowHashtagSelector(true); setShowMoreOptions(false); }} // Dropdown schließen, wenn der Selector geöffnet wird
+                  className="w-12 h-12 rounded-full bg-gray-100 shadow-outset-lg text-blue-500 neumorphic-btn-active-press transition-all duration-200 dark:bg-neutral-900 dark:text-blue-300 flex items-center justify-center"
+                  title={t('addHashtag')}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          )}
+          {/* Gruppe für rechtsbündigen Post-Button */}
+          <div className="ml-auto">
             {showSubmitButton && (
               <button
                 onClick={handleSubmit}
@@ -837,7 +925,7 @@ const PostForm = ({ onAddPost, onClose, userName, allAvailableHashtags, profileI
 };
 
 // EditPostForm Component
-const EditPostForm = ({ post, onSave, onClose, userName, allAvailableHashtags, profileImageUrl, t }) => { // Added t prop
+const EditPostForm = ({ post, onSave, onClose, userName, allAvailableHashtags, profileImageUrl, t }) => {
   const [text, setText] = useState(post.text);
   const [imageUrl, setImageUrl] = useState(post.imageUrl);
   const [videoUrl, setVideoUrl] = useState(post.videoUrl);
@@ -849,6 +937,9 @@ const EditPostForm = ({ post, onSave, onClose, userName, allAvailableHashtags, p
   const imageInputRef = useRef(null);
   const cameraInputRef = useRef(null);
   const textareaRef = useRef(null); // Ref for the textarea element
+  const [showMoreOptions, setShowMoreOptions] = useState(false); // New state for the "More Options" dropdown
+  const moreOptionsRef = useRef(null); // New Ref for the "More Options" dropdown
+
 
   const showMessage = (msg, isError = false) => {
     setMessage(msg);
@@ -887,6 +978,25 @@ const EditPostForm = ({ post, onSave, onClose, userName, allAvailableHashtags, p
       textareaRef.current.style.overflow = 'hidden'; // Always hide scrollbar
     }
   }, [text]); // Re-run whenever text changes
+
+  // Effect to close the "More Options" dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      // If the dropdown is visible AND the click is outside the dropdown AND not on the "..." button itself
+      if (moreOptionsRef.current && !moreOptionsRef.current.contains(event.target) && !event.target.closest('.neumorphic-btn-active-press')) {
+        setShowMoreOptions(false);
+      }
+    };
+
+    // Add event listener on mount
+    document.addEventListener('mousedown', handleClickOutside);
+
+    // Remove event listener on unmount
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [moreOptionsRef]); // Dependency on moreOptionsRef
+
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
@@ -1036,7 +1146,7 @@ const EditPostForm = ({ post, onSave, onClose, userName, allAvailableHashtags, p
             <div className="my-2 p-2 bg-gray-100 rounded-lg shadow-inset-md relative dark:bg-neutral-900">
                 <img src={imageFile ? URL.createObjectURL(imageFile) : imageUrl} alt={t('selectedImage')} className="w-full h-auto rounded-lg max-h-48 object-contain" onError={(e) => { e.target.onerror = null; e.target.src = 'https://placehold.co/400x300/CCCCCC/333333?text=' + t('imageNotFound'); }} />
                 <button
-                    onClick={handleRemoveEditedReplyImage}
+                    onClick={handleRemoveImage}
                     className="absolute top-2 right-2 p-1 rounded-full bg-gray-200 shadow-outset-lg text-gray-600 neumorphic-btn-active-press dark:bg-neutral-700 dark:text-neutral-200"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1060,7 +1170,7 @@ const EditPostForm = ({ post, onSave, onClose, userName, allAvailableHashtags, p
                     )}
                     <input
             type="text"
-            className={`w-full p-3 mt-2 rounded-xl bg-gray-100 shadow-inset-md text-gray-700 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-300 ${showVideoInput ? 'block' : 'hidden'} dark:bg-neutral-900 dark:text-neutral-200 dark:placeholder-neutral-400 dark:focus:ring-blue-600`} // Controlled by showVideoInput
+            className={`w-full p-3 mt-2 rounded-xl bg-gray-100 shadow-inset-md text-gray-700 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-300 ${showVideoInput ? 'block' : 'hidden'} dark:bg-neutral-900 dark:text-neutral-200 dark:placeholder-neutral-400 dark:focus:ring-blue-600`} // Gesteuert durch showVideoInput
             placeholder={t('videoLink')}
             value={videoUrl}
             onChange={handleVideoUrlChange}
@@ -1069,21 +1179,23 @@ const EditPostForm = ({ post, onSave, onClose, userName, allAvailableHashtags, p
 
 
         {/* Bottom Action Bar */}
-        <div className="w-full max-w-2xl mx-auto mt-4 p-4 rounded-2xl shadow-outset-lg bg-gray-100 flex items-center dark:bg-neutral-900">
+        <div className="w-full max-w-2xl mx-auto mt-4 p-4 rounded-2xl shadow-outset-lg bg-gray-100 flex items-center dark:bg-neutral-900 relative">
           {message && (
             <div className="text-center text-sm font-semibold text-green-700 bg-green-100 p-2 rounded-xl shadow-inset-md flex-grow mx-4 dark:text-green-300 dark:bg-neutral-900">
               {message}
             </div>
           )}
-          <div className="flex space-x-4 ml-auto"> {/* Added ml-auto to push to right */}
-            {/* Image Upload Button */}
-            <label htmlFor="imageUpload" className={`p-3 rounded-full bg-gray-100 shadow-outset-lg text-blue-500 neumorphic-btn-active-press transition-all duration-200 cursor-pointer dark:bg-neutral-900 dark:text-blue-300 ${showVideoInput || videoUrl ? 'opacity-50 cursor-not-allowed' : ''}`}>
+
+          {/* Standard-Buttons für mittelgroße Bildschirme und größer */}
+          <div className="hidden sm:flex space-x-4">
+            {/* Bild-Upload-Button */}
+            <label htmlFor="editPostImageUpload" className={`p-3 rounded-full bg-gray-100 shadow-outset-lg text-blue-500 neumorphic-btn-active-press transition-all duration-200 cursor-pointer dark:bg-neutral-900 dark:text-blue-300 ${showVideoInput || videoUrl ? 'opacity-50 cursor-not-allowed' : ''}`} title={t('addImage')}>
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
               <input
                 type="file"
-                id="imageUpload"
+                id="editPostImageUpload"
                 ref={imageInputRef}
                 accept="image/*"
                 className="hidden"
@@ -1092,15 +1204,15 @@ const EditPostForm = ({ post, onSave, onClose, userName, allAvailableHashtags, p
               />
             </label>
 
-            {/* Camera Button */}
-            <label htmlFor="cameraCapture" className={`p-3 rounded-full bg-gray-100 shadow-outset-lg text-blue-500 neumorphic-btn-active-press transition-all duration-200 cursor-pointer dark:bg-neutral-900 dark:text-blue-300 ${showVideoInput || videoUrl ? 'opacity-50 cursor-not-allowed' : ''}`}>
+            {/* Kamera-Button */}
+            <label htmlFor="editPostCameraCapture" className={`p-3 rounded-full bg-gray-100 shadow-outset-lg text-blue-500 neumorphic-btn-active-press transition-all duration-200 cursor-pointer dark:bg-neutral-900 dark:text-blue-300 ${showVideoInput || videoUrl ? 'opacity-50 cursor-not-allowed' : ''}`} title={t('addImageCamera')}>
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
               <input
                 type="file"
-                id="cameraCapture"
+                id="editPostCameraCapture"
                 ref={cameraInputRef}
                 accept="image/*"
                 capture="environment" // or "user" for front camera
@@ -1110,7 +1222,7 @@ const EditPostForm = ({ post, onSave, onClose, userName, allAvailableHashtags, p
               />
             </label>
 
-            {/* Video Link Button */}
+            {/* Video-Link-Button */}
             <button
               onClick={toggleVideoInput}
               className={`p-3 rounded-full bg-gray-100 shadow-outset-lg text-blue-500 neumorphic-btn-active-press transition-all duration-200 dark:bg-neutral-900 dark:text-blue-300 ${imageFile ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -1122,7 +1234,7 @@ const EditPostForm = ({ post, onSave, onClose, userName, allAvailableHashtags, p
               </svg>
             </button>
 
-            {/* Hashtag Selector Button - ONLY SHOW IF HASHTAGS EXIST */}
+            {/* Hashtag-Auswahl-Button - NUR ANZEIGEN, WENN HASHTAGS EXISTIEREN */}
             {allAvailableHashtags.length > 0 && (
               <button
                 onClick={() => setShowHashtagSelector(true)}
@@ -1134,13 +1246,94 @@ const EditPostForm = ({ post, onSave, onClose, userName, allAvailableHashtags, p
                 </svg>
               </button>
             )}
+          </div>
 
+          {/* "Mehr Optionen"-Button für kleine Bildschirme */}
+          <div className="sm:hidden">
+            <button
+              onClick={() => setShowMoreOptions(prev => !prev)}
+              className="p-3 rounded-full bg-gray-100 shadow-outset-lg text-gray-600 neumorphic-btn-active-press transition-all duration-200 dark:bg-neutral-900 dark:text-neutral-200"
+              title="Weitere Optionen"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Schwebendes Dropdown für "Mehr Optionen" */}
+          {showMoreOptions && (
+            <div
+              ref={moreOptionsRef}
+              className="absolute bottom-full left-0 mb-3 p-4 rounded-xl shadow-outset-lg bg-gray-100 flex flex-col space-y-3 items-center dark:bg-neutral-800 z-50" // right-0 zu left-0 geändert
+            >
+              {/* Bild-Upload-Button */}
+              <label htmlFor="editPostImageUpload-sm" className={`w-12 h-12 rounded-full bg-gray-100 shadow-outset-lg text-blue-500 neumorphic-btn-active-press transition-all duration-200 cursor-pointer dark:bg-neutral-900 dark:text-blue-300 flex items-center justify-center ${showVideoInput || videoUrl ? 'opacity-50 cursor-not-allowed' : ''}`} title={t('addImage')}>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <input
+                  type="file"
+                  id="editPostImageUpload-sm"
+                  ref={imageInputRef}
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleImageChange}
+                  disabled={showVideoInput || !!videoUrl}
+                />
+              </label>
+
+              {/* Kamera-Button */}
+              <label htmlFor="editPostCameraCapture-sm" className={`w-12 h-12 rounded-full bg-gray-100 shadow-outset-lg text-blue-500 neumorphic-btn-active-press transition-all duration-200 cursor-pointer dark:bg-neutral-900 dark:text-blue-300 flex items-center justify-center ${showVideoInput || videoUrl ? 'opacity-50 cursor-not-allowed' : ''}`} title={t('addImageCamera')}>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <input
+                  type="file"
+                  id="editPostCameraCapture-sm"
+                  ref={cameraInputRef}
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleImageChange}
+                  disabled={showVideoInput || !!videoUrl}
+                />
+              </label>
+
+              {/* Video-Link-Button */}
+              <button
+                onClick={toggleVideoInput}
+                className={`w-12 h-12 rounded-full bg-gray-100 shadow-outset-lg text-blue-500 neumorphic-btn-active-press transition-all duration-200 dark:bg-neutral-900 dark:text-blue-300 flex items-center justify-center ${imageFile ? 'opacity-50 cursor-not-allowed' : ''}`}
+                title={t('addVideo')}
+                disabled={!!imageFile}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M4 12a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2z" />
+                </svg>
+              </button>
+
+              {/* Hashtag-Auswahl-Button - NUR ANZEIGEN, WENN HASHTAGS EXISTIEREN */}
+              {allAvailableHashtags.length > 0 && (
+                <button
+                  onClick={() => { setShowHashtagSelector(true); setShowMoreOptions(false); }} // Dropdown schließen, wenn der Selector geöffnet wird
+                  className="w-12 h-12 rounded-full bg-gray-100 shadow-outset-lg text-blue-500 neumorphic-btn-active-press transition-all duration-200 dark:bg-neutral-900 dark:text-blue-300 flex items-center justify-center"
+                  title={t('addHashtag')}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          )}
+          {/* Gruppe für rechtsbündigen "Speichern"-Button */}
+          <div className="ml-auto">
             {showSubmitButton && (
               <button
                 onClick={handleSubmit}
                 className="px-5 py-2 rounded-xl bg-gray-100 shadow-outset-lg text-blue-700 font-bold neumorphic-btn-active-press transition-all duration-200 dark:bg-neutral-900 dark:text-blue-300"
               >
-                {t('postButton')}
+                {t('save')}
               </button>
             )}
           </div>
@@ -1805,54 +1998,64 @@ const Post = ({ post, onLike, onAddReply, onPostClick, isDetailView = false, use
       {post.videoUrl && <VideoPlayer url={post.videoUrl} />}
 
       {/* This div was holding the timestamp and now holds all action buttons */}
-      <div className={`flex items-center text-gray-500 text-sm ${isDetailView ? 'border-b border-gray-200 pb-4 mb-4 dark:border-neutral-700 justify-between' : 'mt-4 pt-4 border-t border-gray-200 dark:border-neutral-700'}`}>
-        {/* Always show timestamp in one line */}
-        <span className="whitespace-nowrap">{post.timestamp}</span>
-        <div className="flex items-center space-x-4 ml-auto"> {/* Added ml-auto to push to right */}
-          <button
-            onClick={(e) => { onLike(post.id, userName); stopPropagation(e); }}
-            className={`flex items-center space-x-1 p-2 rounded-xl bg-gray-100 shadow-outset-lg font-medium neumorphic-btn-active-press transition-all duration-200 dark:bg-neutral-900
-              ${hasLiked ? 'text-red-500 dark:text-red-300' : 'text-gray-500 dark:text-neutral-400'}` // Preserve like/unlike coloring
-            }
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
-            </svg>
-            <span>{post.likes}</span> {/* Always show count inside button */}
-          </button>
-          {!isDetailView && ( // Only show reply count button on summary view
+      <div className={`flex flex-col sm:flex-row sm:items-center text-gray-500 text-sm ${isDetailView ? 'border-b border-gray-200 pb-4 mb-4 dark:border-neutral-700 justify-between' : 'mt-4 pt-4 border-t border-gray-200 dark:border-neutral-700'}`}>
+        {/* Always show timestamp in one line, span full width on small screens */}
+        <span className="whitespace-nowrap w-full sm:w-auto mb-2 sm:mb-0">{post.timestamp}</span>
+        {/* Buttons row, takes full width on small screens and aligns to end */}
+        {/* Buttons row, takes full width on small screens and aligns to end */}
+        {/* Adjusted to flex-wrap for wrapping on small screens, and justify-end to align groups right */}
+        <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2 ml-auto w-full sm:w-auto">
+          {/* Group for Like and Reply buttons */}
+          <div className="flex items-center space-x-4">
             <button
-              onClick={(e) => { stopPropagation(e); onPostClick(post.id); }} // Click to open detail view
-              className="flex items-center space-x-1 p-2 rounded-xl bg-gray-100 shadow-outset-lg text-blue-500 font-medium neumorphic-btn-active-press transition-all duration-200 dark:bg-neutral-900 dark:text-blue-300"
+              onClick={(e) => { onLike(post.id, userName); stopPropagation(e); }}
+              className={`flex items-center space-x-1 p-2 rounded-xl bg-gray-100 shadow-outset-lg font-medium neumorphic-btn-active-press transition-all duration-200 dark:bg-neutral-900
+                ${hasLiked ? 'text-red-500 dark:text-red-300' : 'text-gray-500 dark:text-neutral-400'}` // Preserve like/unlike coloring
+              }
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M18 13.5V16a2 2 0 01-2 2H4a2 2 0 01-2-2V8.5a2 2 0 012-2h.5l2-2h4l2 2H16a2 2 0 012 2v5zM5 10a1 1 0 100 2h10a1 1 0 100-2H5z" clipRule="evenodd" />
+                <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
               </svg>
-              <span>{post.replies.length}</span>
+              <span>{post.likes}</span> {/* Always show count inside button */}
             </button>
-          )}
-          {onEditPost && (
-                <button
-                    onClick={(e) => { stopPropagation(e); onEditPost(post); }}
-                    className="p-2 rounded-xl bg-gray-100 shadow-outset-lg text-blue-500 neumorphic-btn-active-press transition-all duration-200 dark:bg-neutral-900 dark:text-blue-300"
-                    title={t('edit')}
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                    </svg>
-                </button>
+            {!isDetailView && ( // Only show reply count button on summary view
+              <button
+                onClick={(e) => { stopPropagation(e); onPostClick(post.id); }} // Click to open detail view
+                className="flex items-center space-x-1 p-2 rounded-xl bg-gray-100 shadow-outset-lg text-blue-500 font-medium neumorphic-btn-active-press transition-all duration-200 dark:bg-neutral-900 dark:text-blue-300"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M18 13.5V16a2 2 0 01-2 2H4a2 2 0 01-2-2V8.5a2 2 0 012-2h.5l2-2h4l2 2H16a2 2 0 012 2v5zM5 10a1 1 0 100 2h10a1 1 0 100-2H5z" clipRule="evenodd" />
+                </svg>
+                <span>{post.replies.length}</span>
+              </button>
             )}
-            {onDeletePost && (
-                <button
-                    onClick={(e) => { stopPropagation(e); onDeletePost(post.id); }}
-                    className="p-2 rounded-xl bg-gray-100 shadow-outset-lg text-red-500 neumorphic-btn-active-press transition-all duration-200 dark:bg-neutral-900 dark:text-red-300"
-                    title={t('delete')}
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                </button>
-            )}
+          </div>
+
+          {/* Group for Edit and Delete buttons */}
+          <div className="flex items-center space-x-4">
+            {onEditPost && (
+                  <button
+                      onClick={(e) => { stopPropagation(e); onEditPost(post); }}
+                      className="p-2 rounded-xl bg-gray-100 shadow-outset-lg text-blue-500 neumorphic-btn-active-press transition-all duration-200 dark:bg-neutral-900 dark:text-blue-300"
+                      title={t('edit')}
+                  >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                      </svg>
+                  </button>
+              )}
+              {onDeletePost && (
+                  <button
+                      onClick={(e) => { stopPropagation(e); onDeletePost(post.id); }}
+                      className="p-2 rounded-xl bg-gray-100 shadow-outset-lg text-red-500 neumorphic-btn-active-press transition-all duration-200 dark:bg-neutral-900 dark:text-red-300"
+                      title={t('delete')}
+                  >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                  </button>
+              )}
+          </div>
         </div>
       </div>
     </div>
@@ -2538,8 +2741,8 @@ const NavBar = ({ currentPage, onNavigate, t }) => { // Added t prop
       </svg>
     )},
     { name: t('settings'), page: 'settings', icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
-        <path fillRule="evenodd" d="M11.49 4.092a1 1 0 00-.853-1.07l-2.036-.372a1 1 0 00-1.07.853L6.082 6.1a1 1 0 00.322 1.054l1.492 1.044a1 1 0 00.088 1.439l-.39 1.48a1 1 0 00.413 1.258l1.706.94a1 1 0 001.258-.413l1.48-.39a1 1 0 001.439.088l1.044 1.492a1 1 0 001.054.322l2.036-1.127a1 1 0 00.853-1.07l-.372-2.036a1 1 0 00-1.07-.853l-1.492.39a1 1 0 00-1.439-.088l-.39-1.48a1 1 0 00-.413-1.258l-1.706-.94a1 1 0 00-1.258.413l-1.48.39a1 1 0 00-.088-1.439zM10 12a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 25 25" fill="currentColor">
+        <path fillRule="evenodd" d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.09-.73-1.72-.98l-.37-2.65c-.06-.24-.27-.42-.52-.42h-4c-.25 0-.46.18-.52.42l-.37 2.65c-.63.25-1.2.58-1.72.98l-2.49-1c-.22-.09-.49 0-.61.22l-2 3.46c.12.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.09.73 1.72.98l.37 2.65c.06.24.27.42.52.42h4c.25 0 .46-.18.52-.42l.37-2.65c.63-.25 1.2-.58 1.72-.98l2.49 1c.22.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z" clipRule="evenodd" />
       </svg>
     )},
   ];
@@ -2588,8 +2791,8 @@ const BottomNavBar = ({ currentPage, onNavigate, t }) => {
       </svg>
     )},
     { name: t('settings'), page: 'settings', icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
-        <path fillRule="evenodd" d="M11.49 4.092a1 1 0 00-.853-1.07l-2.036-.372a1 1 0 00-1.07.853L6.082 6.1a1 1 0 00.322 1.054l1.492 1.044a1 1 0 00.088 1.439l-.39 1.48a1 1 0 00.413 1.258l1.706.94a1 1 0 001.258-.413l1.48-.39a1 1 0 001.439.088l1.044 1.492a1 1 0 001.054.322l2.036-1.127a1 1 0 00.853-1.07l-.372-2.036a1 1 0 00-1.07-.853l-1.492.39a1 1 0 00-1.439-.088l-.39-1.48a1 1 0 00-.413-1.258l-1.706-.94a1 1 0 00-1.258.413l-1.48.39a1 1 0 00-.088-1.439zM10 12a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 25 25" fill="currentColor">
+        <path fillRule="evenodd" d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.09-.73-1.72-.98l-.37-2.65c-.06-.24-.27-.42-.52-.42h-4c-.25 0-.46.18-.52.42l-.37 2.65c-.63.25-1.2.58-1.72.98l-2.49-1c-.22-.09-.49 0-.61.22l-2 3.46c.12.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.09.73 1.72.98l.37 2.65c.06.24.27.42.52.42h4c.25 0 .46-.18.52-.42l.37-2.65c.63-.25 1.2-.58 1.72-.98l2.49 1c.22.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z" clipRule="evenodd" />
       </svg>
     )},
   ];

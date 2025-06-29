@@ -1,11 +1,10 @@
 {
   "name": "dePth",
   "short_name": "dePth",
-  "description": "Deine persönliche digitale Tagebuch-App – offline verfügbar.",
+  "description": "Deine persönliche digitale Tagebuch-App – auch offline verfügbar.",
   "start_url": "/depth/",
   "display": "standalone",
   "background_color": "#e0e0e0",
-  "theme_color": "#63b3ed",
   "icons": [
     {
       "src": "/icons/icon-192x192.png",
